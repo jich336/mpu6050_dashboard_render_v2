@@ -1,0 +1,120 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Dashboard MPU6050</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 0; padding: 0; }
+    header { background: #004080; color: white; padding: 10px; }
+    nav { margin: 20px 0; }
+    button { margin: 5px; padding: 10px 20px; font-size: 16px; }
+    .chart-container { display: none; }
+    canvas { max-width: 800px; margin: 10px auto; display: block; }
+  </style>
+</head>
+<body>
+  <header>
+    <h2>Dashboard MPU6050 en Tiempo Real</h2>
+  </header>
+  <nav>
+    <button onclick="mostrarSeccion('orientacion')">Orientación</button>
+    <button onclick="mostrarSeccion('aceleracion')">Aceleración</button>
+    <button onclick="toggleAutoActualizacion()" id="botonAuto">⏸️ Pausar</button>
+  </nav>
+
+  <div id="orientacion" class="chart-container">
+    <canvas id="graficoRoll"></canvas>
+    <canvas id="graficoPitch"></canvas>
+    <canvas id="graficoYaw"></canvas>
+  </div>
+
+  <div id="aceleracion" class="chart-container">
+    <canvas id="graficoAccX"></canvas>
+    <canvas id="graficoAccY"></canvas>
+    <canvas id="graficoAccZ"></canvas>
+  </div>
+
+  <script>
+    let autoActualizar = true;
+    let intervalo = 3000;
+    let intervaloID;
+
+    function mostrarSeccion(id) {
+      document.querySelectorAll('.chart-container').forEach(div => div.style.display = 'none');
+      document.getElementById(id).style.display = 'block';
+    }
+
+    function toggleAutoActualizacion() {
+      autoActualizar = !autoActualizar;
+      document.getElementById('botonAuto').innerText = autoActualizar ? '⏸️ Pausar' : '▶️ Reanudar';
+      if (autoActualizar) iniciarAutoUpdate();
+      else clearInterval(intervaloID);
+    }
+
+    function iniciarAutoUpdate() {
+      obtenerYActualizar();
+      intervaloID = setInterval(() => {
+        if (autoActualizar) obtenerYActualizar();
+      }, intervalo);
+    }
+
+    async function obtenerDatos() {
+      const res = await fetch('/api/ultimos_datos');
+      const datos = await res.json();
+      return datos;
+    }
+
+    function graficar(id, label, valores, color) {
+      const ctx = document.getElementById(id).getContext('2d');
+      if (window[id]) window[id].destroy();
+      window[id] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: valores.map((_, i) => i),
+          datasets: [{
+            label: label,
+            data: valores,
+            borderColor: color,
+            backgroundColor: color + '33',
+            fill: false,
+            borderWidth: 1
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            x: { display: true, title: { display: true, text: 'Muestra' } },
+            y: { display: true, title: { display: true, text: label } }
+          }
+        }
+      });
+    }
+
+    async function obtenerYActualizar() {
+      const datos = await obtenerDatos();
+      if (datos.length === 0) return;
+
+      const roll = datos.map(d => d.roll);
+      const pitch = datos.map(d => d.pitch);
+      const yaw = datos.map(d => d.yaw);
+
+      const accX = datos.map(d => d.accX);
+      const accY = datos.map(d => d.accY);
+      const accZ = datos.map(d => d.accZ);
+
+      graficar('graficoRoll', 'Roll (°)', roll, 'blue');
+      graficar('graficoPitch', 'Pitch (°)', pitch, 'green');
+      graficar('graficoYaw', 'Yaw (°)', yaw, 'red');
+
+      graficar('graficoAccX', 'AccX (m/s²)', accX, 'orange');
+      graficar('graficoAccY', 'AccY (m/s²)', accY, 'purple');
+      graficar('graficoAccZ', 'AccZ (m/s²)', accZ, 'brown');
+    }
+
+    mostrarSeccion('orientacion');
+    iniciarAutoUpdate();
+  </script>
+</body>
+</html>
